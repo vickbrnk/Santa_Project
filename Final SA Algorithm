@@ -1,0 +1,111 @@
+
+
+import math
+import random
+import pandas as pd
+import numpy as np
+
+from evaluation import *
+from timeit import default_timer as timer
+from math import radians, cos, sin, asin, sqrt
+
+from Function_NM2_NM6 import *
+
+debug = False
+
+# Function to optimse WRW and when NM6 and NM2 will be applied
+def combined_SA(gift_list, num_evaluations, a= 0.8):
+    # figure out for which evaluations we need to consider nm6
+    # if set to 1, then all will get considered equally
+    number_of_evaluations_to_consider_nm6_in = round (1 * num_evaluations)
+    if debug:
+        print('NM6 and NM2 considered for',number_of_evaluations_to_consider_nm6_in)
+    # initialize simulated annealing and bookkeeping variables
+    score_list = []
+    T = 1
+    # create a second temperature variable through which potential bias can be added for how long both neighbourhood moves will be ran
+    # as T2 decreases, the SA will be less likely to implement NM6
+    T2 = 1
+    current_trip = gift_list.copy()
+    current_score = weighted_reindeer_weariness(current_trip)
+    best_trip = current_trip
+    best_score = current_score
+
+    # check length of sample given since NM6 cannot be perfromed on the dataframes with less than 3 trips
+    number_of_trips = gift_list['TripId'].unique()
+    if debug:
+        print(len(number_of_trips))
+    if len(number_of_trips) < 3:
+        for evaluation in range(num_evaluations):
+            if debug:
+                print('NM6 is completely dropped from consideration because the total number of trips is fewer than 3')
+            # create a different (potentially better) solution with the NM2
+            moveNM2 = neighbourhood_movetwo(current_trip)
+        
+            # get the weighted trip length of NM2 adjustion
+            moveNM2Score = weighted_reindeer_weariness(moveNM2)
+            if debug:
+                print('NM2 ran and gave score', moveNM2Score)
+            if moveNM2Score < current_score or random.random() < np.exp((1/T)* (current_score-moveNM2Score)/current_score):
+                if debug:
+                    print('Updating solution: ', current_score, '->', moveNM2Score, '(improvement)' if moveNM2Score < current_score else '(temperature)')
+                current_score = moveNM2Score
+                current_trip = moveNM2
+                if current_score < best_score:
+                    best_score = current_score.copy()
+                    best_trip = current_trip.copy()
+            # We're done with this evaluation, decrease temperature
+            T *= a          
+            score_list.append(current_score)  
+        return best_score, best_trip, score_list
+    
+    # run simulated annealing
+    for evaluation in range(num_evaluations):
+        print(evaluation)
+        if debug:
+            print(evaluation, 'left with temperature', T, 'and best score', current_score)
+        # the number on the right can be adjusted to create bias for NM2 and NM6
+        if evaluation <= number_of_evaluations_to_consider_nm6_in and random.random() < T2:
+            # create a different (potentially better) solution with the NM6
+            moveNM6 = neighbourhood_movesix(current_trip)
+            # get the weighted trip length of NM6 adjustion
+            moveNM6Score = weighted_reindeer_weariness(moveNM6)
+            if debug:
+                    print('NM6 ran and gave score', moveNM6Score)
+            # see which one to accept
+            if moveNM6Score < current_score or random.random() < np.exp((1/T)*((current_score-moveNM6Score)/current_score)):
+                if debug:
+                    print('Updating solution: ', current_score, '->', moveNM6Score, '(improvement)' if moveNM6Score < current_score else '(temperature)')
+                #accept the score and trip that will be ran through SA for the next evaluation
+                current_score = moveNM6Score
+                current_trip = moveNM6
+                #store the lowest ever WRW found and the corresponding dataframe
+                if current_score < best_score:
+                    best_score = current_score.copy()
+                    best_trip = current_trip.copy()
+        else:
+            # create a different (potentially better) solution with the NM2
+            moveNM2 = neighbourhood_movetwo(current_trip)
+            # get the weighted trip length of NM2 adjustion
+            moveNM2Score = weighted_reindeer_weariness(moveNM2)
+            if debug:
+                    print('NM2 ran and gave score', moveNM2Score)
+            if moveNM2Score < current_score or random.random() < np.exp((1/T)* (current_score-moveNM2Score)/current_score):
+                if debug:
+                    print('Updating solution: ', current_score, '->', moveNM2Score, '(improvement)' if moveNM2Score < current_score else '(temperature)')
+                #accept the score and trip that will be ran through SA for the next evaluation
+                current_score = moveNM2Score
+                current_trip = moveNM2
+                #store the lowest ever WRW found and the corresponding datafram
+                if current_score < best_score:
+                    best_score = current_score.copy()
+                    best_trip = current_trip.copy()
+        
+        # We're done with this evaluation, decrease temperature
+        T *= a
+        # alpha for Temp bias can be adjusted here and it will decrease with each evaluation too
+        T2 *= 0.5
+        score_list.append(current_score)
+            
+    return best_score, best_trip, score_list
+

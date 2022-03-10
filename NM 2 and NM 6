@@ -1,0 +1,97 @@
+
+import random
+import pandas as pd
+import numpy as np
+from sampling_module import *
+from evaluation import *
+
+debug = False
+
+def neighbourhood_movetwo(gift_list):
+        # check how many trips present in gift set
+        #print(gift_list)
+        gift_size = gift_list['TripId'].unique()
+        # select random trip from gift set
+        random_trip = np.random.choice(gift_size)
+        boolIdx1 = gift_list['TripId'] == random_trip
+        NM2 = gift_list.loc[boolIdx1,:]
+        # index the dataframe to make insertion easier
+        index_gifts = NM2.reset_index()
+        rows = NM2.shape[0]
+        # select a random gift to move + find its index
+        random_gift= index_gifts.sample(1, random_state=np.random.RandomState())
+        random_gift_indx = random_gift.index.item()
+        # determine randomly where the gift will be moved
+        random_row = random.randrange(rows)
+        # drop the gift from the original position
+        index_gifts.drop(index_gifts.index[[random_gift_indx]], inplace=True)
+        if debug:
+            print("Within trip", random_trip, "following gifts moved:")
+            print('moved from',random_gift_indx,'to', random_row)
+        # create new dataframe with moved gift
+        new_list = pd.concat([index_gifts.iloc[:random_row], random_gift, index_gifts.iloc[random_row:]])
+        # create the gift_list without intial list
+        gift_list_without_chosen_trip = gift_list[~boolIdx1]
+        resulting_gift_list = pd.concat([gift_list_without_chosen_trip, new_list])
+        # sort and return
+        #resulting_gift_list.sort_values("TripId", ascending=True, inplace=True)
+        del resulting_gift_list['index']
+        return resulting_gift_list
+    
+
+def neighbourhood_movesix(gift_list):
+    # check how many trips present in gift set
+    gift_size = gift_list['TripId'].unique()
+    
+    # select three random trips from gift set
+    random_trip = np.random.choice(gift_size)
+    random_trip2 = np.random.choice(gift_size)
+    random_trip3 = np.random.choice(gift_size)
+    if debug:
+        print('Chosen random trips:', random_trip, random_trip2, random_trip3)
+    
+    # make sure the randomly selected trips are not the same
+    if random_trip != random_trip2 and random_trip2 != random_trip3 and random_trip3 != random_trip:
+        # create subsets of these trips
+        trip1_filter = gift_list['TripId'] == random_trip
+        trip1_gifts = gift_list.loc[trip1_filter,:]
+        trip2_filter = gift_list['TripId'] == random_trip2
+        trip2_gifts = gift_list.loc[trip2_filter,:]
+        trip3_filter = gift_list['TripId'] == random_trip3
+        trip3_gifts = gift_list.loc[trip3_filter,:]
+        # to avoid reaching recusrion depth, a while loop is created until a satisfacory NM6 is reached
+        while True:
+            # select random gifts to move + find index
+            random_gift_indx = np.random.choice(trip1_gifts.shape[0])
+            random_gift2_indx = np.random.choice(trip2_gifts.shape[0])
+            random_gift3_indx = np.random.choice(trip3_gifts.shape[0])
+            
+            # create new dataframes with moved gifts
+            new_list = pd.concat([trip1_gifts.iloc[:random_gift_indx], trip2_gifts.iloc[random_gift2_indx:]])
+            new_list2 = pd.concat([trip2_gifts.iloc[:random_gift2_indx], trip3_gifts.iloc[random_gift3_indx:]])
+            new_list3 = pd.concat([trip3_gifts.iloc[:random_gift3_indx], trip1_gifts.iloc[random_gift_indx:]])
+            
+            # make sure the weight limit is not exceeded after move
+            if new_list.Weight.sum() <= 1000 and new_list2.Weight.sum() <= 1000 and new_list3.Weight.sum() <= 1000:
+                break
+        
+        # UPDATE trip Ids of new trips
+        new_list['TripId'] = random_trip
+        new_list2['TripId'] = random_trip2
+        new_list3['TripId'] = random_trip3
+        
+        # create resulting list of gifts
+        gift_list_without_chosen_trips = gift_list[~trip1_filter & ~trip2_filter & ~trip3_filter]
+        resulting_gift_list = pd.concat([gift_list_without_chosen_trips, new_list, new_list2, new_list3])
+    
+        # check to see if shape has not changed
+        if debug:
+            print("resulting shape: ", resulting_gift_list.shape)
+        return resulting_gift_list
+    else:
+        return neighbourhood_movesix(gift_list)
+    
+    
+
+
+    
